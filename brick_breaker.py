@@ -290,8 +290,10 @@ async def main():
             display_message(current_message)
 
         pygame.display.update()
+        await asyncio.sleep(0)  # Ensuring non-blocking call
         clock.tick(FPS)
+
+    pygame.quit()
 
 if __name__ == "__main__":
     asyncio.run(main())
-    pygame.quit()
