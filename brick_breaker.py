@@ -1,3 +1,4 @@
+import asyncio
 import pygame
 import random
 import time
@@ -208,7 +209,7 @@ def show_start_screen():
             if event.type == pygame.KEYDOWN:
                 waiting = False
 
-def main():
+async def main():
     running = True
     lives = 3
     score = 0
@@ -292,5 +293,5 @@ def main():
         clock.tick(FPS)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
     pygame.quit()
