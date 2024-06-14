@@ -2,29 +2,31 @@ import asyncio
 import pygame
 import random
 import time
+import sys
 
+# Initialize pygame and Pygbag
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 900, 900
-FRAME_WIDTH = 5  # Frame width adjusted
-FRAME_GAP = 10  # Gap between frame and bricks
+WIDTH, HEIGHT = 1400, 900
+FRAME_WIDTH = 5
+FRAME_GAP = 10
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 GREEN = (0, 255, 0)
 FONT_SIZE = 16
 BRICK_FONT_SIZE = 10
-FPS = 30
-BRICK_HEIGHT = 35  # Increased height for better visibility
+FPS = 60
+BRICK_HEIGHT = 35
 ADD_BRICK_INTERVAL = 20
 BRICK_ROWS = 5
-BRICK_COLS = 10
+BRICK_COLS = 12
 H_GAP = 10
-V_GAP = 10  # Vertical gap constant
+V_GAP = 10
 BRICK_WIDTH = (WIDTH - (BRICK_COLS - 1) * H_GAP - 2 * (FRAME_WIDTH + FRAME_GAP)) // BRICK_COLS
-PADDLE_PADDING = 50  # Padding between paddle and bottom of the screen
-MESSAGE_PADDING = 70  # Padding between message and paddle
-SCORE_PADDING = 20  # Padding between score/lives and bottom of the screen
+PADDLE_PADDING = 50
+MESSAGE_PADDING = 70
+SCORE_PADDING = 20
 
 # Privacy messages
 PRIVACY_ASPECTS = [
@@ -52,12 +54,22 @@ PRIVACY_ASPECTS = [
 
 # Initialize screen
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Privacy Awareness Block Breaker")
+pygame.display.set_caption("Privacy Awareness Brick Breaker")
 font = pygame.font.Font('freesansbold.ttf', FONT_SIZE)
 brick_font = pygame.font.Font('freesansbold.ttf', BRICK_FONT_SIZE)
 clock = pygame.time.Clock()
 
-# Improved Striker class
+# Load images
+try:
+    background_img = pygame.image.load('/images/background.png')
+    start_button_img = pygame.image.load('/images/start_button.png')
+    exit_button_img = pygame.image.load('/images/exit_button.png')
+    return_button_img = pygame.image.load('/images/return_button.png')
+except pygame.error as e:
+    print(f"Error loading images: {e}")
+    sys.exit(1)
+
+# Game classes
 class Striker:
     def __init__(self, posx, posy, width, height, speed, color):
         self.posx = posx
@@ -69,15 +81,16 @@ class Striker:
         self.rect = pygame.Rect(self.posx, self.posy, self.width, self.height)
 
     def display(self):
-        # Draw rounded rectangle for the paddle
         pygame.draw.rect(screen, self.color, self.rect, border_radius=10)
 
-    def update(self, xFac):
-        self.posx += self.speed * xFac
+    def update(self, keys_pressed):
+        if keys_pressed[pygame.K_LEFT]:
+            self.posx -= self.speed
+        if keys_pressed[pygame.K_RIGHT]:
+            self.posx += self.speed
         self.posx = max(FRAME_WIDTH + FRAME_GAP, min(self.posx, WIDTH - self.width - FRAME_WIDTH - FRAME_GAP))
-        self.rect = pygame.Rect(self.posx, self.posy, self.width, self.height)
+        self.rect.x = self.posx
 
-# Block class
 class Block:
     def __init__(self, posx, posy, width, height, color, label, message):
         self.posx = posx
@@ -98,13 +111,12 @@ class Block:
             screen.blit(text, text_rect)
 
     def move_down(self):
-        self.posy += (BRICK_HEIGHT + V_GAP)  # Move down by brick height and vertical gap
-        self.rect = pygame.Rect(self.posx, self.posy, self.width, self.height)
+        self.posy += (BRICK_HEIGHT + V_GAP)
+        self.rect.y = self.posy
 
     def hit(self):
         self.health -= 100
 
-# Ball class
 class Ball:
     def __init__(self, posx, posy, radius, speed, color):
         self.posx = posx
@@ -135,7 +147,7 @@ class Ball:
     def hit_paddle(self, paddle):
         self.yFac *= -1
         offset = (self.posx - paddle.posx) / (paddle.width / 2) - 1
-        self.xFac = offset  # Set xFac to offset
+        self.xFac = offset
         if self.xFac > 1:
             self.xFac = 1
         elif self.xFac < -1:
@@ -144,6 +156,7 @@ class Ball:
     def hit_brick(self):
         self.yFac *= -1
 
+# Helper functions
 def collision_checker(rect, ball):
     ball_rect = pygame.Rect(ball.posx - ball.radius, ball.posy - ball.radius, ball.radius * 2, ball.radius * 2)
     return rect.colliderect(ball_rect)
@@ -155,8 +168,7 @@ def create_bricks(rows, cols, width, height, h_gap, v_gap):
         for col in range(cols):
             aspect_index = (row * cols + col) % len(PRIVACY_ASPECTS)
             label, message = PRIVACY_ASPECTS[aspect_index]
-            # 30:70 ratio for green:white
-            color = GREEN if random.random() < 0.3 else WHITE
+            color = GREEN if random.random() < 0.4 else WHITE
             x_pos = col * (width + h_gap) + FRAME_WIDTH + FRAME_GAP
             y_pos = row * (height + v_gap) + FRAME_WIDTH + FRAME_GAP
             bricks.append(Block(x_pos, y_pos, width, height, color, label, message))
@@ -170,19 +182,18 @@ def add_new_bricks(bricks, cols, width, height, h_gap, v_gap):
     for col in range(cols):
         aspect_index = col % len(PRIVACY_ASPECTS)
         label, message = PRIVACY_ASPECTS[aspect_index]
-        # 30:70 ratio for green:white
-        color = GREEN if random.random() < 0.3 else WHITE
+        color = GREEN if random.random() < 0.4 else WHITE
         x_pos = col * (width + h_gap) + FRAME_WIDTH + FRAME_GAP
         y_pos = FRAME_WIDTH + FRAME_GAP  # New bricks start at the top
         new_bricks.append(Block(x_pos, y_pos, width, height, color, label, message))
-    bricks.extend(new_bricks)
+    bricks.extend(new_bricks)  # Add the new bricks to the existing list
 
 def display_message(message):
     words = message.split(' ')
     lines = []
     current_line = words[0]
     for word in words[1:]:
-        if font.size(current_line + ' ' + word)[0] < WIDTH - 40:  # Adjust width to fit within the game window
+        if font.size(current_line + ' ' + word)[0] < WIDTH - 40:
             current_line += ' ' + word
         else:
             lines.append(current_line)
@@ -196,46 +207,56 @@ def display_message(message):
         y_offset += FONT_SIZE + 5  # Line spacing
 
 def show_start_screen():
-    screen.fill(BLACK)
-    start_text = font.render("Press any key to start", True, WHITE)
-    screen.blit(start_text, (WIDTH // 2 - start_text.get_width() // 2, HEIGHT // 2 - start_text.get_height() // 2))
+    screen.blit(background_img, (0, 0))
+    start_button_rect = start_button_img.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 100))
+    exit_button_rect = exit_button_img.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 100))
+    screen.blit(start_button_img, start_button_rect)
+    screen.blit(exit_button_img, exit_button_rect)
     pygame.display.update()
     waiting = True
     while waiting:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                quit()
-            if event.type == pygame.KEYDOWN:
-                waiting = False
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                if start_button_rect.collidepoint(mouse_pos):
+                    waiting = False
+                if exit_button_rect.collidepoint(mouse_pos):
+                    pygame.quit()
+                    sys.exit()
 
 async def main():
     running = True
+    global lives, score  # Make lives and score global to be modified in handle_restart
     lives = 3
     score = 0
-    striker = Striker(WIDTH // 2 - 50, HEIGHT - PADDLE_PADDING, 100, 20, 10, WHITE)  # Adjusted position of paddle
+    high_score = 0
+    striker = Striker(WIDTH // 2 - 50, HEIGHT - PADDLE_PADDING, 100, 20, 10, WHITE)
     strikerXFac = 0
-    ball = Ball(WIDTH // 2, HEIGHT // 2, 7, 3, WHITE)  # Update the ball speed here to 3
+    ball = Ball(WIDTH // 2, HEIGHT // 2, 7, 3, WHITE)
     bricks = create_bricks(BRICK_ROWS, BRICK_COLS, BRICK_WIDTH, BRICK_HEIGHT, H_GAP, V_GAP)
     last_add_time = time.time()
     current_message = ""
 
-    show_start_screen()  # Show start screen before starting the game
+    show_start_screen()
 
     while running:
-        screen.fill(BLACK)  # Fill the screen with black to avoid overlapping colors
-
+        screen.fill(BLACK)
         # Draw the frame
-        pygame.draw.rect(screen, WHITE, (0, 0, WIDTH, FRAME_WIDTH))  # Top frame
-        pygame.draw.rect(screen, WHITE, (0, 0, FRAME_WIDTH, HEIGHT))  # Left frame
-        pygame.draw.rect(screen, WHITE, (WIDTH - FRAME_WIDTH, 0, FRAME_WIDTH, HEIGHT))  # Right frame
-        pygame.draw.rect(screen, WHITE, (0, HEIGHT - FRAME_WIDTH, WIDTH, FRAME_WIDTH))  # Bottom frame
+        pygame.draw.rect(screen, WHITE, (0, 0, WIDTH, FRAME_WIDTH))
+        pygame.draw.rect(screen, WHITE, (0, 0, FRAME_WIDTH, HEIGHT))
+        pygame.draw.rect(screen, WHITE, (WIDTH - FRAME_WIDTH, 0, FRAME_WIDTH, HEIGHT))
+        pygame.draw.rect(screen, WHITE, (0, HEIGHT - FRAME_WIDTH, WIDTH, FRAME_WIDTH))
 
-        # Draw the score and lives display
+        # Display scores and lives
         score_text = font.render(f"Score: {score}", True, WHITE)
+        high_score_text = font.render(f"High Score: {high_score}", True, WHITE)
         lives_text = font.render(f"Lives: {lives}", True, WHITE)
-        screen.blit(score_text, (FRAME_WIDTH + 10, HEIGHT - SCORE_PADDING - FRAME_WIDTH))  # Adjusted position of score
-        screen.blit(lives_text, (WIDTH - lives_text.get_width() - FRAME_WIDTH - 10, HEIGHT - SCORE_PADDING - FRAME_WIDTH))  # Adjusted position of lives
+        screen.blit(score_text, (10, HEIGHT - SCORE_PADDING - FRAME_WIDTH))
+        screen.blit(high_score_text, (WIDTH // 2 - high_score_text.get_width() // 2, HEIGHT - SCORE_PADDING - FRAME_WIDTH))
+        screen.blit(lives_text, (WIDTH - lives_text.get_width() - FRAME_WIDTH - 10, HEIGHT - SCORE_PADDING - FRAME_WIDTH))
 
         if not bricks:
             bricks = create_bricks(BRICK_ROWS, BRICK_COLS, BRICK_WIDTH, BRICK_HEIGHT, H_GAP, V_GAP)
@@ -245,15 +266,17 @@ async def main():
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    strikerXFac = -1
-                if event.key == pygame.K_RIGHT:
-                    strikerXFac = 1
-            if event.type == pygame.KEYUP:
-                if event.key in (pygame.K_LEFT, pygame.K_RIGHT):
-                    strikerXFac = 0
+                running = False  # Exit the game loop when the user closes the window
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
+                if start_button_rect.collidepoint(mouse_pos):
+                    waiting = False
+                if exit_button_rect.collidepoint(mouse_pos):
+                    pygame.quit()
+                    sys.exit()
+
+        keys_pressed = pygame.key.get_pressed()
+        striker.update(keys_pressed)
 
         if collision_checker(striker.rect, ball):
             ball.hit_paddle(striker)
@@ -265,19 +288,19 @@ async def main():
                     current_message = brick.message
                     bricks.remove(brick)
                     score += 5
-                    # Increase ball speed after every 50 points
                     if score % 50 == 0:
                         ball.speed += 1
-                        if ball.speed % 5 == 0:  # Check if ball speed is a multiple of 5
-                            striker.speed += 1  # Increase paddle speed as well
+                        if ball.speed % 5 == 0:
+                            striker.speed += 1
 
-        striker.update(strikerXFac)
         if ball.update():
             lives -= 1
-            ball.reset()  # Ensure the ball resets but keeps the same speed
+            if lives <= 0:
+                running = False
+            ball.reset()
 
         if time.time() - last_add_time > ADD_BRICK_INTERVAL:
-            add_new_bricks(bricks, BRICK_COLS, BRICK_WIDTH, BRICK_HEIGHT, H_GAP, V_GAP)  # Add V_GAP here
+            add_new_bricks(bricks, BRICK_COLS, BRICK_WIDTH, BRICK_HEIGHT, H_GAP, V_GAP)
             last_add_time = time.time()
 
         striker.display()
@@ -285,15 +308,44 @@ async def main():
         for brick in bricks:
             brick.display()
 
-        # Display the current message
         if current_message:
             display_message(current_message)
 
         pygame.display.update()
-        await asyncio.sleep(0)  # Ensuring non-blocking call
+        await asyncio.sleep(0)
         clock.tick(FPS)
 
-    pygame.quit()
+    if score > high_score:
+        high_score = score
+
+    lives = 3
+    score = 0
+
+    show_game_over_screen()
+    await handle_restart()
+
+def show_game_over_screen():
+    screen.fill(BLACK)
+    game_over_text = font.render("Game Over! Click to restart", True, WHITE)
+    screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - game_over_text.get_height() // 2))
+    return_button_rect = return_button_img.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 100))
+    screen.blit(return_button_img, return_button_rect)
+    pygame.display.update()
+
+async def handle_restart():
+    global lives, score
+    lives = 3
+    score = 0
+    waiting = True
+    while waiting:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                waiting = False
+        await asyncio.sleep(0)
+    await main()  # Call main asynchronously
 
 if __name__ == "__main__":
     asyncio.run(main())
